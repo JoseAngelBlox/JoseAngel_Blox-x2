@@ -13,7 +13,7 @@ gui.Parent = guiParent
 
 -- Creamos el cuadrado principal (Frame)
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 220, 0, 280) -- Ampliado para los 3 botones
+mainFrame.Size = UDim2.new(0, 220, 0, 280)
 mainFrame.Position = UDim2.new(0.5, -110, 0.5, -140)
 mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25) -- Gris oscuro/Negro
 mainFrame.BorderSizePixel = 0
@@ -39,12 +39,12 @@ title.Parent = mainFrame
 
 -- Efecto de brillo para las letras doradas
 local glow = Instance.new("UIStroke")
-glow.Color = Color3.fromRGB(255, 255, 100) -- Amarillo brillante
+glow.Color = Color3.fromRGB(255, 255, 100)
 glow.Transparency = 0.5
 glow.Thickness = 1.5
 glow.Parent = title
 
--- Función para crear botones y ahorrar líneas de código
+-- Función para crear botones
 local function createToggle(name, yPos)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0, 160, 0, 45)
@@ -63,7 +63,7 @@ local function createToggle(name, yPos)
     return btn
 end
 
--- Creamos los 3 botones en distintas posiciones (Y)
+-- Creamos los 3 botones
 local btnMultiplicador = createToggle("Multiplicador x2", 60)
 local btnAutoFarm = createToggle("Auto Farm", 115)
 local btnAutoCollect = createToggle("Auto Collect", 170)
@@ -83,11 +83,9 @@ local isAutoCollectOn = false
 -- ==========================================
 btnMultiplicador.MouseButton1Click:Connect(function()
     isMultiplicadorOn = not isMultiplicadorOn
-    
     if isMultiplicadorOn then
-        btnMultiplicador.BackgroundColor3 = Color3.fromRGB(40, 200, 40) -- Verde
+        btnMultiplicador.BackgroundColor3 = Color3.fromRGB(40, 200, 40)
         btnMultiplicador.Text = "Multiplicador x2: ON"
-        
         task.spawn(function()
             while isMultiplicadorOn do
                 pcall(function()
@@ -97,7 +95,7 @@ btnMultiplicador.MouseButton1Click:Connect(function()
             end
         end)
     else
-        btnMultiplicador.BackgroundColor3 = Color3.fromRGB(200, 40, 40) -- Rojo
+        btnMultiplicador.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
         btnMultiplicador.Text = "Multiplicador x2: OFF"
     end
 end)
@@ -108,25 +106,21 @@ end)
 -- ==========================================
 btnAutoFarm.MouseButton1Click:Connect(function()
     isAutoFarmOn = not isAutoFarmOn
-    
     if isAutoFarmOn then
         btnAutoFarm.BackgroundColor3 = Color3.fromRGB(40, 200, 40)
         btnAutoFarm.Text = "Auto Farm: ON"
-        
         task.spawn(function()
             while isAutoFarmOn do
                 pcall(function()
                     local char = LocalPlayer.Character
                     if char and char:FindFirstChild("Humanoid") then
-                        -- Buscamos el objeto KickReady en cualquier lugar del Workspace
                         local kickReady = game.Workspace:FindFirstChild("KickReady", true) 
                         if kickReady and kickReady:IsA("BasePart") then
-                            -- Hace que el personaje camine hacia esa posición
                             char.Humanoid:MoveTo(kickReady.Position)
                         end
                     end
                 end)
-                task.wait(0.5) -- Actualiza la posición cada medio segundo
+                task.wait(0.5) 
             end
         end)
     else
@@ -137,8 +131,10 @@ end)
 
 
 -- ==========================================
--- Lógica: Auto Collect (TP a los Slots 1-29)
+-- Lógica: Auto Collect (Búsqueda por Usuario de Roblox)
 -- ==========================================
+local miBase = nil 
+
 btnAutoCollect.MouseButton1Click:Connect(function()
     isAutoCollectOn = not isAutoCollectOn
     
@@ -146,35 +142,94 @@ btnAutoCollect.MouseButton1Click:Connect(function()
         btnAutoCollect.BackgroundColor3 = Color3.fromRGB(40, 200, 40)
         btnAutoCollect.Text = "Auto Collect: ON"
         
+        miBase = nil 
+        local miUsuario = LocalPlayer.Name -- Obtenemos tu usuario exacto de Roblox
+        
+        -- ESTRATEGIA 1: Buscar si la carpeta principal de la base tiene tu nombre de usuario
+        for _, obj in pairs(game.Workspace:GetChildren()) do
+            if obj.Name == miUsuario and obj:FindFirstChild("Slot1", true) then
+                miBase = obj
+                break
+            end
+        end
+        
+        -- ESTRATEGIA 2: Buscar una etiqueta con tu nombre y subir por las carpetas
+        if not miBase then
+            for _, obj in pairs(game.Workspace:GetDescendants()) do
+                if (obj:IsA("StringValue") and obj.Value == miUsuario) or (obj:IsA("ObjectValue") and obj.Value == LocalPlayer) then
+                    -- Si encontramos tu nombre, subimos por los "Parent" hasta dar con la base que tiene los Slots
+                    local padre = obj.Parent
+                    while padre and padre ~= game.Workspace do
+                        if padre:FindFirstChild("Slot1", true) then
+                            miBase = padre
+                            break
+                        end
+                        padre = padre.Parent -- Sube un nivel en la carpeta
+                    end
+                end
+                if miBase then break end -- Si ya la encontró, detiene la búsqueda
+            end
+        end
+        
+        -- ESTRATEGIA 3 (Emergencia): Si el juego no guarda tu nombre en ninguna parte
+        if not miBase then
+            local char = LocalPlayer.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                local distanciaMasCorta = math.huge
+                local slot1MasCercano = nil
+                
+                for _, objeto in pairs(game.Workspace:GetDescendants()) do
+                    if objeto:IsA("BasePart") and objeto.Name == "Slot1" then
+                        local distancia = (objeto.Position - char.HumanoidRootPart.Position).Magnitude
+                        if distancia < distanciaMasCorta then
+                            distanciaMasCorta = distancia
+                            slot1MasCercano = objeto
+                        end
+                    end
+                end
+                
+                if slot1MasCercano then
+                    -- Vuelve a subir por las carpetas para asegurar que es toda la base
+                    local padre = slot1MasCercano.Parent
+                    while padre and padre ~= game.Workspace do
+                        if padre:FindFirstChild("Slot2", true) then
+                            miBase = padre
+                            break
+                        end
+                        padre = padre.Parent
+                    end
+                    if not miBase then miBase = slot1MasCercano.Parent end
+                end
+            end
+        end
+        
+        -- INICIA EL BUCLE SÓLO EN LA BASE ENCONTRADA
         task.spawn(function()
             while isAutoCollectOn do
                 pcall(function()
                     local char = LocalPlayer.Character
-                    if char and char:FindFirstChild("HumanoidRootPart") then
+                    if char and char:FindFirstChild("HumanoidRootPart") and miBase then
                         
-                        -- Bucle del 1 al 29
                         for i = 1, 29 do
-                            if not isAutoCollectOn then break end -- Si lo apagas a la mitad, se detiene de golpe
+                            if not isAutoCollectOn then break end 
                             
                             local slotName = "Slot" .. tostring(i)
-                            local slot = game.Workspace:FindFirstChild(slotName, true)
+                            local slot = miBase:FindFirstChild(slotName, true)
                             
                             if slot and slot:IsA("BasePart") then
-                                -- Teletransporta al jugador
                                 char.HumanoidRootPart.CFrame = slot.CFrame
-                                
-                                -- IMPORTANTE: Una pequeña pausa de 0.1s para que el juego registre que tocaste el dinero
                                 task.wait(0.1) 
                             end
                         end
                         
                     end
                 end)
-                task.wait(0.5) -- Pausa corta antes de volver a empezar desde el Slot1
+                task.wait(0.5)
             end
         end)
     else
         btnAutoCollect.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
         btnAutoCollect.Text = "Auto Collect: OFF"
+        miBase = nil 
     end
 end)
