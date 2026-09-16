@@ -18,7 +18,7 @@ mainFrame.Position = UDim2.new(0.5, -110, 0.5, -140)
 mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25) -- Gris oscuro/Negro
 mainFrame.BorderSizePixel = 0
 mainFrame.Active = true
-mainFrame.Draggable = true -- Hace que lo puedas mover por la pantalla
+mainFrame.Draggable = true
 mainFrame.Parent = gui
 
 -- Redondeamos las esquinas del cuadrado principal
@@ -26,7 +26,7 @@ local uiCorner = Instance.new("UICorner")
 uiCorner.CornerRadius = UDim.new(0, 15)
 uiCorner.Parent = mainFrame
 
--- Título actualizado: JoseAngel_Blox x2
+-- Título
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 50)
 title.Position = UDim2.new(0, 0, 0, 5)
@@ -37,7 +37,7 @@ title.TextSize = 20
 title.TextColor3 = Color3.fromRGB(255, 215, 0) -- Dorado
 title.Parent = mainFrame
 
--- Efecto de brillo para las letras doradas
+-- Efecto de brillo
 local glow = Instance.new("UIStroke")
 glow.Color = Color3.fromRGB(255, 255, 100)
 glow.Transparency = 0.5
@@ -49,7 +49,7 @@ local function createToggle(name, yPos)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0, 160, 0, 45)
     btn.Position = UDim2.new(0.5, -80, 0, yPos)
-    btn.BackgroundColor3 = Color3.fromRGB(200, 40, 40) -- Rojo (Apagado)
+    btn.BackgroundColor3 = Color3.fromRGB(200, 40, 40) -- Rojo
     btn.Text = name .. ": OFF"
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     btn.Font = Enum.Font.GothamBold
@@ -63,16 +63,13 @@ local function createToggle(name, yPos)
     return btn
 end
 
--- Creamos los 3 botones
 local btnMultiplicador = createToggle("Multiplicador x2", 60)
 local btnAutoFarm = createToggle("Auto Farm", 115)
 local btnAutoCollect = createToggle("Auto Collect", 170)
 
--- Variables de juego
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
--- Estados de los botones
 local isMultiplicadorOn = false
 local isAutoFarmOn = false
 local isAutoCollectOn = false
@@ -131,8 +128,10 @@ end)
 
 
 -- ==========================================
--- Lógica: Auto Collect STRICTO (Solo a tu usuario)
+-- Lógica: Auto Collect (Simular Toque sin TP)
 -- ==========================================
+local miBase = nil 
+
 btnAutoCollect.MouseButton1Click:Connect(function()
     isAutoCollectOn = not isAutoCollectOn
     
@@ -140,71 +139,61 @@ btnAutoCollect.MouseButton1Click:Connect(function()
         btnAutoCollect.BackgroundColor3 = Color3.fromRGB(40, 200, 40)
         btnAutoCollect.Text = "Auto Collect: ON"
         
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            
+            -- Buscamos el Slot1 más cercano para registrar TU base
+            local distanciaMasCorta = math.huge
+            local slot1MasCercano = nil
+            
+            for _, objeto in pairs(game.Workspace:GetDescendants()) do
+                if objeto:IsA("BasePart") and objeto.Name == "Slot1" then
+                    local distancia = (objeto.Position - char.HumanoidRootPart.Position).Magnitude
+                    if distancia < distanciaMasCorta then
+                        distanciaMasCorta = distancia
+                        slot1MasCercano = objeto
+                    end
+                end
+            end
+            
+            if slot1MasCercano then
+                miBase = slot1MasCercano.Parent
+            else
+                miBase = game.Workspace
+            end
+        end
+        
+        -- Iniciar recolección "Fantasma" (Sin moverse)
         task.spawn(function()
             while isAutoCollectOn do
                 pcall(function()
                     local char = LocalPlayer.Character
-                    if char and char:FindFirstChild("HumanoidRootPart") then
+                    -- Necesitamos la HumanoidRootPart para simular que esa parte tocó el dinero
+                    if char and char:FindFirstChild("HumanoidRootPart") and miBase then
+                        local rootPart = char.HumanoidRootPart
                         
-                        local miBase = nil
-                        local miUsuario = LocalPlayer.Name
-                        
-                        -- Buscamos todos los Slot1 en el mapa
-                        for _, obj in pairs(game.Workspace:GetDescendants()) do
-                            if obj:IsA("BasePart") and obj.Name == "Slot1" then
-                                local padre = obj.Parent
-                                local esMia = false
-                                
-                                -- Revisamos hacia arriba en las carpetas para ver si alguna tiene tu nombre
-                                while padre and padre ~= game.Workspace do
-                                    -- Comprueba si el nombre de la carpeta tiene tu nombre de usuario
-                                    if string.find(tostring(padre.Name), miUsuario) then
-                                        esMia = true
-                                        break
-                                    end
-                                    
-                                    -- Comprueba si hay una etiqueta que dice que eres el dueño
-                                    for _, child in pairs(padre:GetChildren()) do
-                                        if (child:IsA("StringValue") and child.Value == miUsuario) or 
-                                           (child:IsA("ObjectValue") and child.Value == LocalPlayer) then
-                                            esMia = true
-                                            break
-                                        end
-                                    end
-                                    
-                                    if esMia then break end
-                                    padre = padre.Parent -- Sube a la carpeta anterior
-                                end
-                                
-                                if esMia then
-                                    miBase = padre
-                                    break -- Encontramos tu base, dejamos de buscar en el resto del mapa
-                                end
-                            end
-                        end
-                        
-                        -- Si estamos 100% seguros de que encontró TU base, iniciamos el TP
-                        if miBase then
-                            for i = 1, 29 do
-                                if not isAutoCollectOn then break end 
-                                
-                                local slotName = "Slot" .. tostring(i)
-                                local slot = miBase:FindFirstChild(slotName, true)
-                                
-                                if slot and slot:IsA("BasePart") then
-                                    char.HumanoidRootPart.CFrame = slot.CFrame
-                                    task.wait(0.1) 
-                                end
+                        for i = 1, 29 do
+                            if not isAutoCollectOn then break end 
+                            
+                            local slotName = "Slot" .. tostring(i)
+                            local slot = miBase:FindFirstChild(slotName, true)
+                            
+                            if slot and slot:IsA("BasePart") then
+                                -- Magia: Simulamos que tocamos el slot (0) y lo soltamos (1)
+                                firetouchinterest(rootPart, slot, 0)
+                                task.wait(0.05) -- Pausa super corta
+                                firetouchinterest(rootPart, slot, 1)
                             end
                         end
                         
                     end
                 end)
-                task.wait(0.5) -- Espera medio segundo y repite
+                task.wait(0.5)
             end
         end)
     else
         btnAutoCollect.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
         btnAutoCollect.Text = "Auto Collect: OFF"
-    end
+        miBase = nil 
+        end
 end)
