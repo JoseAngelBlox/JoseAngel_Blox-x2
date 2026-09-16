@@ -131,10 +131,8 @@ end)
 
 
 -- ==========================================
--- Lógica: Auto Collect (Búsqueda por Usuario de Roblox)
+-- Lógica: Auto Collect STRICTO (Solo a tu usuario)
 -- ==========================================
-local miBase = nil 
-
 btnAutoCollect.MouseButton1Click:Connect(function()
     isAutoCollectOn = not isAutoCollectOn
     
@@ -142,94 +140,71 @@ btnAutoCollect.MouseButton1Click:Connect(function()
         btnAutoCollect.BackgroundColor3 = Color3.fromRGB(40, 200, 40)
         btnAutoCollect.Text = "Auto Collect: ON"
         
-        miBase = nil 
-        local miUsuario = LocalPlayer.Name -- Obtenemos tu usuario exacto de Roblox
-        
-        -- ESTRATEGIA 1: Buscar si la carpeta principal de la base tiene tu nombre de usuario
-        for _, obj in pairs(game.Workspace:GetChildren()) do
-            if obj.Name == miUsuario and obj:FindFirstChild("Slot1", true) then
-                miBase = obj
-                break
-            end
-        end
-        
-        -- ESTRATEGIA 2: Buscar una etiqueta con tu nombre y subir por las carpetas
-        if not miBase then
-            for _, obj in pairs(game.Workspace:GetDescendants()) do
-                if (obj:IsA("StringValue") and obj.Value == miUsuario) or (obj:IsA("ObjectValue") and obj.Value == LocalPlayer) then
-                    -- Si encontramos tu nombre, subimos por los "Parent" hasta dar con la base que tiene los Slots
-                    local padre = obj.Parent
-                    while padre and padre ~= game.Workspace do
-                        if padre:FindFirstChild("Slot1", true) then
-                            miBase = padre
-                            break
-                        end
-                        padre = padre.Parent -- Sube un nivel en la carpeta
-                    end
-                end
-                if miBase then break end -- Si ya la encontró, detiene la búsqueda
-            end
-        end
-        
-        -- ESTRATEGIA 3 (Emergencia): Si el juego no guarda tu nombre en ninguna parte
-        if not miBase then
-            local char = LocalPlayer.Character
-            if char and char:FindFirstChild("HumanoidRootPart") then
-                local distanciaMasCorta = math.huge
-                local slot1MasCercano = nil
-                
-                for _, objeto in pairs(game.Workspace:GetDescendants()) do
-                    if objeto:IsA("BasePart") and objeto.Name == "Slot1" then
-                        local distancia = (objeto.Position - char.HumanoidRootPart.Position).Magnitude
-                        if distancia < distanciaMasCorta then
-                            distanciaMasCorta = distancia
-                            slot1MasCercano = objeto
-                        end
-                    end
-                end
-                
-                if slot1MasCercano then
-                    -- Vuelve a subir por las carpetas para asegurar que es toda la base
-                    local padre = slot1MasCercano.Parent
-                    while padre and padre ~= game.Workspace do
-                        if padre:FindFirstChild("Slot2", true) then
-                            miBase = padre
-                            break
-                        end
-                        padre = padre.Parent
-                    end
-                    if not miBase then miBase = slot1MasCercano.Parent end
-                end
-            end
-        end
-        
-        -- INICIA EL BUCLE SÓLO EN LA BASE ENCONTRADA
         task.spawn(function()
             while isAutoCollectOn do
                 pcall(function()
                     local char = LocalPlayer.Character
-                    if char and char:FindFirstChild("HumanoidRootPart") and miBase then
+                    if char and char:FindFirstChild("HumanoidRootPart") then
                         
-                        for i = 1, 29 do
-                            if not isAutoCollectOn then break end 
-                            
-                            local slotName = "Slot" .. tostring(i)
-                            local slot = miBase:FindFirstChild(slotName, true)
-                            
-                            if slot and slot:IsA("BasePart") then
-                                char.HumanoidRootPart.CFrame = slot.CFrame
-                                task.wait(0.1) 
+                        local miBase = nil
+                        local miUsuario = LocalPlayer.Name
+                        
+                        -- Buscamos todos los Slot1 en el mapa
+                        for _, obj in pairs(game.Workspace:GetDescendants()) do
+                            if obj:IsA("BasePart") and obj.Name == "Slot1" then
+                                local padre = obj.Parent
+                                local esMia = false
+                                
+                                -- Revisamos hacia arriba en las carpetas para ver si alguna tiene tu nombre
+                                while padre and padre ~= game.Workspace do
+                                    -- Comprueba si el nombre de la carpeta tiene tu nombre de usuario
+                                    if string.find(tostring(padre.Name), miUsuario) then
+                                        esMia = true
+                                        break
+                                    end
+                                    
+                                    -- Comprueba si hay una etiqueta que dice que eres el dueño
+                                    for _, child in pairs(padre:GetChildren()) do
+                                        if (child:IsA("StringValue") and child.Value == miUsuario) or 
+                                           (child:IsA("ObjectValue") and child.Value == LocalPlayer) then
+                                            esMia = true
+                                            break
+                                        end
+                                    end
+                                    
+                                    if esMia then break end
+                                    padre = padre.Parent -- Sube a la carpeta anterior
+                                end
+                                
+                                if esMia then
+                                    miBase = padre
+                                    break -- Encontramos tu base, dejamos de buscar en el resto del mapa
+                                end
+                            end
+                        end
+                        
+                        -- Si estamos 100% seguros de que encontró TU base, iniciamos el TP
+                        if miBase then
+                            for i = 1, 29 do
+                                if not isAutoCollectOn then break end 
+                                
+                                local slotName = "Slot" .. tostring(i)
+                                local slot = miBase:FindFirstChild(slotName, true)
+                                
+                                if slot and slot:IsA("BasePart") then
+                                    char.HumanoidRootPart.CFrame = slot.CFrame
+                                    task.wait(0.1) 
+                                end
                             end
                         end
                         
                     end
                 end)
-                task.wait(0.5)
+                task.wait(0.5) -- Espera medio segundo y repite
             end
         end)
     else
         btnAutoCollect.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
         btnAutoCollect.Text = "Auto Collect: OFF"
-        miBase = nil 
     end
 end)
